@@ -19,6 +19,7 @@ import {
   startRoundTimeout,
   applyBailout,
   collectRoundEndBalances,
+  endRound,
   advanceAfterTimeout,
   skipRound,
   resetForPlayAgain,
@@ -216,8 +217,7 @@ export function useLocalGameState(): UseLocalGameStateApi {
         ?? cur.lastBalanceUpdate[pid]
         ?? cur.players[pid].balance;
     }
-    let next = collectRoundEndBalances(cur, fallback);
-    next = startRoundTimeout(next);
+    const next = endRound(cur, fallback);
     Sound.fanfare();
     broadcast(next);
   }, [broadcast]);
@@ -321,8 +321,7 @@ export function useLocalGameState(): UseLocalGameStateApi {
         balances[pid] = Math.max(0, Math.round((baseBalance + variance) * 100) / 100);
       }
     }
-    let next = collectRoundEndBalances(cur, balances);
-    next = startRoundTimeout(next);
+    const next = endRound(cur, balances);
     Sound.fanfare();
     broadcast(next);
   }, [broadcast]);

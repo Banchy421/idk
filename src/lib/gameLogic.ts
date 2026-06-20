@@ -371,7 +371,23 @@ export function skipRound(state: GameState): GameState {
       players[pid] = { ...players[pid], balance: liveBalance };
     }
   }
+  // If this is the last round, go straight to results (no pause)
+  if (state.currentRound >= state.totalRounds) {
+    return { ...state, players, skipVotes: [], phase: 'results' as Phase };
+  }
   return startRoundTimeout({ ...state, players, skipVotes: [] });
+}
+
+/** Collect round-end balances and advance to the next phase.
+ *  - If this is the last round, go STRAIGHT to results (no 10s round-timeout pause).
+ *  - Otherwise, show the 10s round-timeout (winner announcement + bailout offer). */
+export function endRound(state: GameState, balances: Record<string, number>): GameState {
+  const collected = collectRoundEndBalances(state, balances);
+  // If this is the last round, skip the pause and go straight to results
+  if (collected.currentRound >= collected.totalRounds) {
+    return { ...collected, phase: 'results' as Phase };
+  }
+  return startRoundTimeout(collected);
 }
 
 /** Advance from round-timeout to next game-select or to results if last round. */

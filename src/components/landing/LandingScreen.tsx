@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AVATARS } from '@/lib/types';
 import { Sound, unlockAudio } from '@/lib/sounds';
@@ -36,6 +36,19 @@ export function LandingScreen({ onCreate, onJoin, mode = 'multiplayer', onModeCh
   const [action, setAction] = useState<'create' | 'join'>(init.action);
   const [joinCode, setJoinCode] = useState(init.joinCode);
   const [error, setError] = useState('');
+
+  // Unlock audio on the FIRST user interaction anywhere on the page.
+  // This ensures the AudioContext is resumed before any Sound.* calls,
+  // so the first click on an avatar/button isn't swallowed by audio setup.
+  useEffect(() => {
+    const unlock = () => { unlockAudio(); };
+    window.addEventListener('pointerdown', unlock, { once: true });
+    window.addEventListener('keydown', unlock, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
+  }, []);
 
   const handleSubmit = () => {
     if (!name.trim()) {

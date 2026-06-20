@@ -14,6 +14,7 @@ import {
   startRoundTimeout,
   applyBailout,
   collectRoundEndBalances,
+  endRound,
   advanceAfterTimeout,
   skipRound,
   resetForPlayAgain,
@@ -187,8 +188,7 @@ export function useGameState(): UseGameStateApi {
             clearTimeout(roundEndTimeoutRef.current);
             roundEndTimeoutRef.current = null;
           }
-          next = collectRoundEndBalances(next, balances);
-          next = startRoundTimeout(next);
+          next = endRound(next, balances);
           Sound.fanfare();
         } else if (next.phase === 'round-active' && !roundEndTimeoutRef.current) {
           // Not all balances received — start a 5s fallback timeout.
@@ -209,8 +209,7 @@ export function useGameState(): UseGameStateApi {
                 ?? cur2.players[pid].balance;
             }
             console.log('[StakeFriends] Round-end fallback: force-advancing with', fallback);
-            let next2 = collectRoundEndBalances(cur2, fallback);
-            next2 = startRoundTimeout(next2);
+            const next2 = endRound(cur2, fallback);
             Sound.fanfare();
             void broadcast(next2);
           }, 5000);
@@ -469,8 +468,7 @@ export function useGameState(): UseGameStateApi {
       clearTimeout(roundEndTimeoutRef.current);
       roundEndTimeoutRef.current = null;
     }
-    let next = collectRoundEndBalances(cur, fallback);
-    next = startRoundTimeout(next);
+    const next = endRound(cur, fallback);
     Sound.fanfare();
     void broadcast(next);
   }, [isHost, broadcast]);

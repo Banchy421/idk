@@ -41,46 +41,54 @@ interface ToneOpts {
 
 function tone({ freq, duration, type = 'sine', gain = 0.2, attack = 0.005, decay = duration, delay = 0, sweepTo }: ToneOpts): void {
   if (_muted) return;
-  const ac = ctx();
-  if (!ac) return;
-  const t0 = ac.currentTime + delay;
-  const osc = ac.createOscillator();
-  const g = ac.createGain();
-  osc.type = type;
-  osc.frequency.setValueAtTime(freq, t0);
-  if (sweepTo) {
-    osc.frequency.exponentialRampToValueAtTime(Math.max(1, sweepTo), t0 + duration);
+  try {
+    const ac = ctx();
+    if (!ac || ac.state === 'suspended') return;
+    const t0 = ac.currentTime + delay;
+    const osc = ac.createOscillator();
+    const g = ac.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, t0);
+    if (sweepTo) {
+      osc.frequency.exponentialRampToValueAtTime(Math.max(1, sweepTo), t0 + duration);
+    }
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(gain, t0 + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + attack + decay);
+    osc.connect(g);
+    g.connect(ac.destination);
+    osc.start(t0);
+    osc.stop(t0 + delay + duration + 0.05);
+  } catch {
+    // Never let sound errors block UI clicks
   }
-  g.gain.setValueAtTime(0, t0);
-  g.gain.linearRampToValueAtTime(gain, t0 + attack);
-  g.gain.exponentialRampToValueAtTime(0.0001, t0 + attack + decay);
-  osc.connect(g);
-  g.connect(ac.destination);
-  osc.start(t0);
-  osc.stop(t0 + delay + duration + 0.05);
 }
 
 function noise(duration: number, gain = 0.2, filterFreq = 8000, delay = 0): void {
   if (_muted) return;
-  const ac = ctx();
-  if (!ac) return;
-  const bufferSize = Math.floor(ac.sampleRate * duration);
-  const buffer = ac.createBuffer(1, bufferSize, ac.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < bufferSize; i++) {
-    data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+  try {
+    const ac = ctx();
+    if (!ac || ac.state === 'suspended') return;
+    const bufferSize = Math.floor(ac.sampleRate * duration);
+    const buffer = ac.createBuffer(1, bufferSize, ac.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+    }
+    const src = ac.createBufferSource();
+    src.buffer = buffer;
+    const filter = ac.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = filterFreq;
+    const g = ac.createGain();
+    g.gain.value = gain;
+    src.connect(filter);
+    filter.connect(g);
+    g.connect(ac.destination);
+    src.start(ac.currentTime + delay);
+  } catch {
+    // Never let sound errors block UI clicks
   }
-  const src = ac.createBufferSource();
-  src.buffer = buffer;
-  const filter = ac.createBiquadFilter();
-  filter.type = 'lowpass';
-  filter.frequency.value = filterFreq;
-  const g = ac.createGain();
-  g.gain.value = gain;
-  src.connect(filter);
-  filter.connect(g);
-  g.connect(ac.destination);
-  src.start(ac.currentTime + delay);
 }
 
 export const Sound = {
