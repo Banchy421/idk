@@ -1,0 +1,243 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-mono);
+  --font-display: var(--font-playfair);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-gold: #C9A84C;
+  --color-gold-dark: #8a6f2c;
+  --color-win: #38A169;
+  --color-lose: #E53E3E;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  --radius: 0.625rem;
+  /* StakeFriends dark casino theme */
+  --background: #0a0a0a;
+  --foreground: #f5f5f5;
+  --card: #1a1a1a;
+  --card-foreground: #f5f5f5;
+  --popover: #1a1a1a;
+  --popover-foreground: #f5f5f5;
+  --primary: #C9A84C;
+  --primary-foreground: #0a0a0a;
+  --secondary: #2a2a2a;
+  --secondary-foreground: #f5f5f5;
+  --muted: #2a2a2a;
+  --muted-foreground: #8a8a8a;
+  --accent: #C9A84C;
+  --accent-foreground: #0a0a0a;
+  --destructive: #E53E3E;
+  --border: #2a2a2a;
+  --input: #2a2a2a;
+  --ring: #C9A84C;
+  --chart-1: #C9A84C;
+  --chart-2: #38A169;
+  --chart-3: #E53E3E;
+  --chart-4: #4a90e2;
+  --chart-5: #9b59b6;
+  --sidebar: #1a1a1a;
+  --sidebar-foreground: #f5f5f5;
+  --sidebar-primary: #C9A84C;
+  --sidebar-primary-foreground: #0a0a0a;
+  --sidebar-accent: #2a2a2a;
+  --sidebar-accent-foreground: #f5f5f5;
+  --sidebar-border: #2a2a2a;
+  --sidebar-ring: #C9A84C;
+}
+
+.dark {
+  --background: #0a0a0a;
+  --foreground: #f5f5f5;
+  --card: #1a1a1a;
+  --card-foreground: #f5f5f5;
+  --popover: #1a1a1a;
+  --popover-foreground: #f5f5f5;
+  --primary: #C9A84C;
+  --primary-foreground: #0a0a0a;
+  --secondary: #2a2a2a;
+  --secondary-foreground: #f5f5f5;
+  --muted: #2a2a2a;
+  --muted-foreground: #8a8a8a;
+  --accent: #C9A84C;
+  --accent-foreground: #0a0a0a;
+  --destructive: #E53E3E;
+  --border: #2a2a2a;
+  --input: #2a2a2a;
+  --ring: #C9A84C;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html, body {
+    @apply bg-background text-foreground;
+    background: #0a0a0a;
+    color: #f5f5f5;
+  }
+  body {
+    font-family: var(--font-inter), system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, .font-display {
+    font-family: var(--font-playfair), Georgia, serif;
+  }
+}
+
+/* Casino-style custom utilities */
+.text-gold { color: #C9A84C; }
+.bg-gold { background-color: #C9A84C; }
+.bg-gold-dark { background-color: #8a6f2c; }
+.border-gold { border-color: #C9A84C; }
+.text-win { color: #38A169; }
+.bg-win { background-color: #38A169; }
+.text-lose { color: #E53E3E; }
+.bg-lose { background-color: #E53E3E; }
+
+.glow-gold { box-shadow: 0 0 20px rgba(201, 168, 76, 0.5); }
+.glow-gold-strong { box-shadow: 0 0 40px rgba(201, 168, 76, 0.8); }
+.glow-win { box-shadow: 0 0 20px rgba(56, 161, 105, 0.5); }
+.glow-lose { box-shadow: 0 0 20px rgba(229, 62, 62, 0.5); }
+
+.text-shadow-gold { text-shadow: 0 0 15px rgba(201, 168, 76, 0.6); }
+
+/* Subtle background pattern */
+.casino-bg {
+  background-color: #0a0a0a;
+  background-image:
+    radial-gradient(at 20% 20%, rgba(201, 168, 76, 0.05) 0px, transparent 50%),
+    radial-gradient(at 80% 80%, rgba(229, 62, 62, 0.03) 0px, transparent 50%);
+}
+
+.panel {
+  background-color: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-radius: 0.625rem;
+}
+
+/* Custom scrollbar */
+.casino-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.casino-scroll::-webkit-scrollbar-track {
+  background: #1a1a1a;
+}
+.casino-scroll::-webkit-scrollbar-thumb {
+  background: #C9A84C;
+  border-radius: 3px;
+}
+
+/* Animations */
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+.shimmer {
+  background: linear-gradient(90deg, #C9A84C 0%, #fff5cc 50%, #C9A84C 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer 3s linear infinite;
+}
+
+@keyframes pulse-gold {
+  0%, 100% { box-shadow: 0 0 15px rgba(201, 168, 76, 0.4); }
+  50% { box-shadow: 0 0 35px rgba(201, 168, 76, 0.8); }
+}
+.pulse-gold { animation: pulse-gold 1.5s ease-in-out infinite; }
+
+@keyframes confetti-fall {
+  0% { transform: translateY(-100vh) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+}
+.confetti-piece {
+  position: fixed;
+  width: 10px;
+  height: 10px;
+  pointer-events: none;
+  animation: confetti-fall 3s linear forwards;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-8px); }
+  75% { transform: translateX(8px); }
+}
+.shake { animation: shake 0.4s ease-in-out 2; }
+
+@keyframes flash-win {
+  0%, 100% { background-color: transparent; }
+  50% { background-color: rgba(56, 161, 105, 0.3); }
+}
+.flash-win { animation: flash-win 0.6s ease-in-out; }
+
+@keyframes flash-lose {
+  0%, 100% { background-color: transparent; }
+  50% { background-color: rgba(229, 62, 62, 0.3); }
+}
+.flash-lose { animation: flash-lose 0.6s ease-in-out; }
+
+@keyframes flash-gold {
+  0%, 100% { background-color: transparent; }
+  50% { background-color: rgba(201, 168, 76, 0.4); }
+}
+.flash-gold { animation: flash-gold 0.8s ease-in-out; }
+
+/* 3D coin */
+.coin-3d {
+  transform-style: preserve-3d;
+  position: relative;
+}
+.coin-face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backface-visibility: hidden;
+  border-radius: 9999px;
+}
+.coin-face.back {
+  transform: rotateY(180deg);
+}
