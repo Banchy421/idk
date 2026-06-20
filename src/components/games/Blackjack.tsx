@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { freshDeck, handValue, isBlackjack, type Card } from '@/lib/utils-casino';
 import { Sound } from '@/lib/sounds';
@@ -23,22 +23,19 @@ type Result = 'win' | 'lose' | 'push' | 'blackjack' | null;
 export function Blackjack({ balance, onBalanceChange, bonusMultiplier, timeRemaining, seed }: BlackjackProps) {
   const [bet, setBet] = useState(10);
   const [deck, setDeck] = useState<Card[]>([]);
-  const [playerHand, setPlayerHand] = useState<Card[]>([]);
-  const [dealerHand, setDealerHand] = useState<Card[]>([]);
+  const [playerHand, setPlayerHand] = useState<{ card: Card; id: number }[]>([]);
+  const [dealerHand, setDealerHand] = useState<{ card: Card; id: number }[]>([]);
   const [phase, setPhase] = useState<Phase>('idle');
   const [result, setResult] = useState<Result>(null);
   const [winAmount, setWinAmount] = useState(0);
   const deckIndexRef = useRef(0);
+  const cardIdRef = useRef(0);
+  const balanceRef = useRef(balance);
 
-  const dealCard = (): Card => {
-    if (deckIndexRef.current >= deck.length) {
-      const newDeck = freshDeck((seed ^ Date.now()) >>> 0);
-      setDeck(newDeck);
-      deckIndexRef.current = 1;
-      return newDeck[0];
-    }
-    return deck[deckIndexRef.current++];
-  };
+  // Keep balanceRef in sync with the latest balance prop
+  useEffect(() => { balanceRef.current = balance; }, [balance]);
+
+  const nextCardId = () => ++cardIdRef.current;
 
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -49,26 +46,37 @@ export function Blackjack({ balance, onBalanceChange, bonusMultiplier, timeRemai
     onBalanceChange(balance - bet);
     setResult(null);
     setWinAmount(0);
+    setPlayerHand([]);
+    setDealerHand([]);
     const newDeck = freshDeck((seed ^ Date.now()) >>> 0);
     setDeck(newDeck);
     deckIndexRef.current = 0;
     setPhase('dealing');
-    const p: Card[] = [];
-    const d: Card[] = [];
-    await sleep(200); p.push({ ...newDeck[deckIndexRef.current++], faceUp: true }); setPlayerHand([...p]); Sound.cardDeal();
-    await sleep(400); d.push({ ...newDeck[deckIndexRef.current++], faceUp: true }); setDealerHand([...d]); Sound.cardDeal();
-    await sleep(400); p.push({ ...newDeck[deckIndexRef.current++], faceUp: true }); setPlayerHand([...p]); Sound.cardDeal();
-    await sleep(400); d.push({ ...newDeck[deckIndexRef.current++], faceUp: false }); setDealerHand([...d]); Sound.cardDeal();
-    const playerBJ = isBlackjack(p);
-    const dealerBJ = isBlackjack(d);
+    const p: { card: Card; id: number }[] = [];
+    const d: { card: Card; id: number }[] = [];
+    await sleep(200);
+    p.push({ card: { ...newDeck[deckIndexRef.current++], faceUp: true }, id: nextCardId() });
+    setPlayerHand([...p]); Sound.cardDeal();
+    await sleep(400);
+    d.push({ card: { ...newDeck[deckIndexRef.current++], faceUp: true }, id: nextCardId() });
+    setDealerHand([...d]); Sound.cardDeal();
+    await sleep(400);
+    p.push({ card: { ...newDeck[deckIndexRef.current++], faceUp: true }, id: nextCardId() });
+    setPlayerHand([...p]); Sound.cardDeal();
+    await sleep(400);
+    d.push({ card: { ...newDeck[deckIndexRef.current++], faceUp: false }, id: nextCardId() });
+    setDealerHand([...d]); Sound.cardDeal();
+    const playerBJ = isBlackjack(p.map(c => c.card));
+    const dealerBJ = isBlackjack(d.map(c => c.card));
     if (playerBJ || dealerBJ) {
       await sleep(300);
-      d[1].faceUp = true;
-      setDealerHand([...d]);
+      // Flip dealer's hole card
+      const dFlipped = d.map((c, i) => i === 1 ? { ...c, card: { ...c.card, faceUp: true } } : c);
+      setDealerHand(dFlipped);
       Sound.cardFlip();
       await sleep(600);
       if (playerBJ && dealerBJ) { finishHand('push', bet); }
-      else if (playerBJ) { finishHand('blackjack', bet * 1.5 * bonusMultiplier); }
+      else if (playerBJ) { finishHand('blackjack', bet + bet * 1.5 * bonusMultiplier); }
       else { finishHand('lose', 0); }
       return;
     }
@@ -79,14 +87,14 @@ export function Blackjack({ balance, onBalanceChange, bonusMultiplier, timeRemai
     if (phase !== 'player') return;
     Sound.cardDeal();
     const card = { ...deck[deckIndexRef.current++], faceUp: true };
-    const newHand = [...playerHand, card];
+    const newHand = [...playerHand, { card, id: nextCardId() }];
     setPlayerHand(newHand);
-    const v = handValue(newHand).total;
+    const v = handValue(newHand.map(c => c.card)).total;
     if (v > 21) {
       await sleep(400);
-      const d = [...dealerHand];
-      d[1].faceUp = true;
-      setDealerHand(d);
+      // Flip dealer's hole card
+      const dFlipped = dealerHand.map((c, i) => i === 1 ? { ...c, card: { ...c.card, faceUp: true } } : c);
+      setDealerHand(dFlipped);
       Sound.cardFlip();
       await sleep(500);
       finishHand('lose', 0);
@@ -99,23 +107,23 @@ export function Blackjack({ balance, onBalanceChange, bonusMultiplier, timeRemai
   const stand = async () => {
     if (phase !== 'player') return;
     setPhase('dealer');
-    const d = [...dealerHand];
-    d[1].faceUp = true;
-    setDealerHand(d);
+    // Flip dealer's hole card
+    const dFlipped = dealerHand.map((c, i) => i === 1 ? { ...c, card: { ...c.card, faceUp: true } } : c);
+    setDealerHand(dFlipped);
     Sound.cardFlip();
     await sleep(700);
-    let cur = d;
-    while (handValue(cur).total < 17) {
+    let cur = dFlipped;
+    while (handValue(cur.map(c => c.card)).total < 17) {
       await sleep(700);
       const card = { ...deck[deckIndexRef.current++], faceUp: true };
       Sound.cardDeal();
-      cur = [...cur, card];
+      cur = [...cur, { card, id: nextCardId() }];
       setDealerHand([...cur]);
     }
     await sleep(500);
-    const playerTotal = handValue(playerHand).total;
-    const dealerTotal = handValue(cur).total;
-    if (dealerTotal > 21 || playerTotal > dealerTotal) { finishHand('win', bet * bonusMultiplier); }
+    const playerTotal = handValue(playerHand.map(c => c.card)).total;
+    const dealerTotal = handValue(cur.map(c => c.card)).total;
+    if (dealerTotal > 21 || playerTotal > dealerTotal) { finishHand('win', bet + bet * bonusMultiplier); }
     else if (playerTotal < dealerTotal) { finishHand('lose', 0); }
     else { finishHand('push', bet); }
   };
@@ -123,55 +131,57 @@ export function Blackjack({ balance, onBalanceChange, bonusMultiplier, timeRemai
   const doubleDown = async () => {
     if (phase !== 'player') return;
     if (playerHand.length !== 2) return;
-    if (balance < bet) { Sound.error(); return; }
+    if (balanceRef.current < bet) { Sound.error(); return; }
     Sound.bet();
-    onBalanceChange(balance - bet);
+    onBalanceChange(balanceRef.current - bet);
     const doubledBet = bet * 2;
     setBet(doubledBet);
     Sound.cardDeal();
     const card = { ...deck[deckIndexRef.current++], faceUp: true };
-    const newHand = [...playerHand, card];
+    const newHand = [...playerHand, { card, id: nextCardId() }];
     setPlayerHand(newHand);
     await sleep(500);
-    const v = handValue(newHand).total;
+    const v = handValue(newHand.map(c => c.card)).total;
     if (v > 21) {
-      const d = [...dealerHand];
-      d[1].faceUp = true;
-      setDealerHand(d);
+      const dFlipped = dealerHand.map((c, i) => i === 1 ? { ...c, card: { ...c.card, faceUp: true } } : c);
+      setDealerHand(dFlipped);
       Sound.cardFlip();
       await sleep(500);
       finishHand('lose', 0);
       setBet(bet);
     } else {
       setPhase('dealer');
-      const d = [...dealerHand];
-      d[1].faceUp = true;
-      setDealerHand(d);
+      const dFlipped = dealerHand.map((c, i) => i === 1 ? { ...c, card: { ...c.card, faceUp: true } } : c);
+      setDealerHand(dFlipped);
       Sound.cardFlip();
       await sleep(700);
-      let cur = d;
-      while (handValue(cur).total < 17) {
+      let cur = dFlipped;
+      while (handValue(cur.map(c => c.card)).total < 17) {
         await sleep(700);
         const c = { ...deck[deckIndexRef.current++], faceUp: true };
         Sound.cardDeal();
-        cur = [...cur, c];
+        cur = [...cur, { card: c, id: nextCardId() }];
         setDealerHand([...cur]);
       }
       await sleep(500);
-      const playerTotal = handValue(newHand).total;
-      const dealerTotal = handValue(cur).total;
-      if (dealerTotal > 21 || playerTotal > dealerTotal) { finishHand('win', doubledBet * bonusMultiplier); }
+      const playerTotal = handValue(newHand.map(c => c.card)).total;
+      const dealerTotal = handValue(cur.map(c => c.card)).total;
+      if (dealerTotal > 21 || playerTotal > dealerTotal) { finishHand('win', doubledBet + doubledBet * bonusMultiplier); }
       else if (playerTotal < dealerTotal) { finishHand('lose', 0); }
       else { finishHand('push', doubledBet); }
       setBet(bet);
     }
   };
 
-  const finishHand = (res: Result, win: number) => {
+  /** finishHand — `totalReturn` is the TOTAL amount returned to the player
+   *  (original bet + profit). For a push, it's just the bet. For a loss, it's 0. */
+  const finishHand = (res: Result, totalReturn: number) => {
     setResult(res);
-    setWinAmount(win);
-    if (win > 0) {
-      onBalanceChange(balance + win);
+    setWinAmount(totalReturn);
+    if (totalReturn > 0) {
+      // balanceRef.current is the live balance (after bet deduction).
+      // Add the total return (bet + profit) to get the final balance.
+      onBalanceChange(balanceRef.current + totalReturn);
       if (res === 'blackjack') Sound.winBig();
       else Sound.chipClink();
     } else if (res === 'lose') {
@@ -187,8 +197,8 @@ export function Blackjack({ balance, onBalanceChange, bonusMultiplier, timeRemai
     }, 3000);
   };
 
-  const playerTotal = handValue(playerHand).total;
-  const dealerTotal = handValue(dealerHand.filter((c) => c.faceUp)).total;
+  const playerTotal = handValue(playerHand.map(c => c.card)).total;
+  const dealerTotal = handValue(dealerHand.filter(c => c.card.faceUp).map(c => c.card)).total;
 
   return (
     <div className="w-full max-w-2xl mx-auto flex flex-col gap-4">
@@ -204,19 +214,19 @@ export function Blackjack({ balance, onBalanceChange, bonusMultiplier, timeRemai
           <span className="text-xs" style={{ color: 'var(--sf-text-muted)', fontWeight: 400 }}>Dealer</span>
           {dealerHand.length > 0 && (
             <span className="font-mono text-sm" style={{ color: 'var(--sf-text)', fontWeight: 400 }}>
-              {dealerHand.some((c) => !c.faceUp) ? `${dealerTotal}+?` : dealerTotal}
+              {dealerHand.some(c => !c.card.faceUp) ? `${dealerTotal}+?` : dealerTotal}
             </span>
           )}
         </div>
         <div className="flex gap-2 min-h-[100px] items-center">
-          <AnimatePresence>
-            {dealerHand.map((card, i) => (
-              <CardView key={i} card={card} delay={i * 0.4} />
+          <AnimatePresence mode="popLayout">
+            {dealerHand.map(({ card, id }) => (
+              <CardView key={id} card={card} />
             ))}
-            {dealerHand.length === 0 && (
-              <div className="text-sm" style={{ color: 'var(--sf-text-muted)', fontWeight: 400 }}>Awaiting deal...</div>
-            )}
           </AnimatePresence>
+          {dealerHand.length === 0 && (
+            <div className="text-sm" style={{ color: 'var(--sf-text-muted)', fontWeight: 400 }}>Awaiting deal...</div>
+          )}
         </div>
       </div>
 
@@ -233,14 +243,14 @@ export function Blackjack({ balance, onBalanceChange, bonusMultiplier, timeRemai
           )}
         </div>
         <div className="flex gap-2 min-h-[100px] items-center">
-          <AnimatePresence>
-            {playerHand.map((card, i) => (
-              <CardView key={i} card={card} delay={i * 0.4} />
+          <AnimatePresence mode="popLayout">
+            {playerHand.map(({ card, id }) => (
+              <CardView key={id} card={card} />
             ))}
-            {playerHand.length === 0 && (
-              <div className="text-sm" style={{ color: 'var(--sf-text-muted)', fontWeight: 400 }}>Place your bet and deal</div>
-            )}
           </AnimatePresence>
+          {playerHand.length === 0 && (
+            <div className="text-sm" style={{ color: 'var(--sf-text-muted)', fontWeight: 400 }}>Place your bet and deal</div>
+          )}
         </div>
       </div>
 
@@ -312,33 +322,52 @@ export function Blackjack({ balance, onBalanceChange, bonusMultiplier, timeRemai
   );
 }
 
-function CardView({ card, delay = 0 }: { card: Card; delay?: number }) {
+function CardView({ card }: { card: Card }) {
   const isRed = card.suit === '♥' || card.suit === '♦';
   return (
     <motion.div
-      initial={{ y: -60, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      transition={{ delay, type: 'spring', stiffness: 200 }}
-      className="w-14 h-20 rounded-md flex flex-col items-center justify-center"
+      layout
+      initial={{ y: -50, opacity: 0, scale: 0.9 }}
+      animate={{ y: 0, opacity: 1, scale: 1 }}
+      exit={{ y: -30, opacity: 0, scale: 0.9 }}
+      transition={{ type: 'spring', stiffness: 250, damping: 20 }}
+      className="w-14 h-20 rounded-md flex flex-col items-center justify-center flex-shrink-0"
       style={{
         backgroundColor: card.faceUp ? 'var(--sf-bg)' : 'var(--sf-bg-secondary)',
         border: '0.5px solid var(--sf-border)',
       }}
     >
-      {card.faceUp ? (
-        <>
-          <div className="text-xl" style={{ color: isRed ? 'var(--sf-lose)' : 'var(--sf-text)', fontWeight: 500 }}>
-            {card.rank}
-          </div>
-          <div className="text-xl" style={{ color: isRed ? 'var(--sf-lose)' : 'var(--sf-text)' }}>
-            {card.suit}
-          </div>
-        </>
-      ) : (
-        <div className="w-full h-full rounded-md flex items-center justify-center" style={{ backgroundColor: 'var(--sf-bg-secondary)' }}>
-          <span style={{ color: 'var(--sf-text-muted)' }}>♠</span>
-        </div>
-      )}
+      <AnimatePresence mode="wait">
+        {card.faceUp ? (
+          <motion.div
+            key="face"
+            initial={{ rotateY: 90, opacity: 0 }}
+            animate={{ rotateY: 0, opacity: 1 }}
+            exit={{ rotateY: -90, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="flex flex-col items-center justify-center"
+          >
+            <div className="text-xl" style={{ color: isRed ? 'var(--sf-lose)' : 'var(--sf-text)', fontWeight: 500 }}>
+              {card.rank}
+            </div>
+            <div className="text-xl" style={{ color: isRed ? 'var(--sf-lose)' : 'var(--sf-text)' }}>
+              {card.suit}
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="back"
+            initial={{ rotateY: 90, opacity: 0 }}
+            animate={{ rotateY: 0, opacity: 1 }}
+            exit={{ rotateY: -90, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="w-full h-full rounded-md flex items-center justify-center"
+            style={{ backgroundColor: 'var(--sf-bg-secondary)' }}
+          >
+            <span style={{ color: 'var(--sf-text-muted)' }}>♠</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
