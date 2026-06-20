@@ -41,6 +41,7 @@ export interface UseLocalGameStateApi {
   hostAdvanceFromFinalVote: () => void;
   hostAdvanceFromRoundTimeout: () => void;
   hostSkipRound: () => void;
+  hostForceEndRound: () => void;
   hostPlayAgain: () => void;
   // player actions
   selectGame: (game: GameName) => void;
@@ -188,6 +189,23 @@ export function useLocalGameState(): UseLocalGameStateApi {
     broadcast(skipRound(cur));
   }, [broadcast]);
 
+  const hostForceEndRound = useCallback(() => {
+    const cur = stateRef.current;
+    if (!cur) return;
+    if (cur.phase !== 'round-active') return;
+    const activePlayers = Object.keys(cur.players).filter((id) => !cur.players[id].isEliminated);
+    const fallback: Record<string, number> = {};
+    for (const pid of activePlayers) {
+      fallback[pid] = cur.roundEndBalances[pid]
+        ?? cur.lastBalanceUpdate[pid]
+        ?? cur.players[pid].balance;
+    }
+    let next = collectRoundEndBalances(cur, fallback);
+    next = startRoundTimeout(next);
+    Sound.fanfare();
+    broadcast(next);
+  }, [broadcast]);
+
   const hostPlayAgain = useCallback(() => {
     const cur = stateRef.current;
     if (!cur) return;
@@ -302,6 +320,7 @@ export function useLocalGameState(): UseLocalGameStateApi {
     hostAdvanceFromFinalVote,
     hostAdvanceFromRoundTimeout,
     hostSkipRound,
+    hostForceEndRound,
     hostPlayAgain,
     selectGame,
     finalVote,

@@ -183,6 +183,7 @@ export default function Home() {
           onUnskipVote={api.unskipVote}
           onLiveBalance={api.sendLiveBalance}
           onRoundEndBalance={api.sendRoundEndBalance}
+          onForceEndRound={api.hostForceEndRound}
           onLeave={handleLeave}
         />
       )}

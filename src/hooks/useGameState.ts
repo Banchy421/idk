@@ -38,6 +38,7 @@ export interface UseGameStateApi {
   hostAdvanceFromFinalVote: () => void;
   hostAdvanceFromRoundTimeout: () => void;
   hostSkipRound: () => void;
+  hostForceEndRound: () => void;
   hostPlayAgain: () => void;
   // player actions (safe to call by anyone; routed to host)
   selectGame: (game: GameName) => void;
@@ -73,6 +74,7 @@ export function useGameState(): UseGameStateApi {
   const selfRef = useRef<Player | null>(null);
   const liveBalanceRef = useRef<Record<string, number>>({});
   const joinRetryRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const roundEndTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => { stateRef.current = state; }, [state]);
 
@@ -168,9 +170,38 @@ export function useGameState(): UseGameStateApi {
         // If all non-eliminated players reported, collect & advance to timeout
         const activePlayers = Object.keys(next.players).filter((id) => !next.players[id].isEliminated);
         if (Object.keys(balances).length >= activePlayers.length && next.phase === 'round-active') {
+          // All balances received — advance immediately
+          if (roundEndTimeoutRef.current) {
+            clearTimeout(roundEndTimeoutRef.current);
+            roundEndTimeoutRef.current = null;
+          }
           next = collectRoundEndBalances(next, balances);
           next = startRoundTimeout(next);
           Sound.fanfare();
+        } else if (next.phase === 'round-active' && !roundEndTimeoutRef.current) {
+          // Not all balances received — start a 5s fallback timeout.
+          // If it fires, fill in missing balances with last-known live values
+          // and force-advance. This prevents the round from getting stuck if
+          // a guest's P2P message is delayed or lost.
+          roundEndTimeoutRef.current = setTimeout(() => {
+            roundEndTimeoutRef.current = null;
+            const cur2 = stateRef.current;
+            if (!cur2 || cur2.phase !== 'round-active') return;
+            const active2 = Object.keys(cur2.players).filter((id) => !cur2.players[id].isEliminated);
+            if (Object.keys(cur2.roundEndBalances).length >= active2.length) return; // Already advanced
+            // Fill in missing balances with last-known live balance (or current state balance)
+            const fallback: Record<string, number> = {};
+            for (const pid of active2) {
+              fallback[pid] = cur2.roundEndBalances[pid]
+                ?? cur2.lastBalanceUpdate[pid]
+                ?? cur2.players[pid].balance;
+            }
+            console.log('[StakeFriends] Round-end fallback: force-advancing with', fallback);
+            let next2 = collectRoundEndBalances(cur2, fallback);
+            next2 = startRoundTimeout(next2);
+            Sound.fanfare();
+            void broadcast(next2);
+          }, 5000);
         }
         break;
       }
@@ -326,6 +357,10 @@ export function useGameState(): UseGameStateApi {
       clearInterval(joinRetryRef.current);
       joinRetryRef.current = null;
     }
+    if (roundEndTimeoutRef.current) {
+      clearTimeout(roundEndTimeoutRef.current);
+      roundEndTimeoutRef.current = null;
+    }
     p2pRef.current?.leave();
     p2pRef.current = null;
     setState(null);
@@ -391,6 +426,29 @@ export function useGameState(): UseGameStateApi {
     void broadcast(skipRound(cur));
   }, [isHost, broadcast]);
 
+  /** Host can force-end a round that's stuck (e.g. guest disconnected). */
+  const hostForceEndRound = useCallback(() => {
+    const cur = stateRef.current;
+    if (!cur || !isHost) return;
+    if (cur.phase !== 'round-active') return;
+    // Collect all balances from last-known live values
+    const activePlayers = Object.keys(cur.players).filter((id) => !cur.players[id].isEliminated);
+    const fallback: Record<string, number> = {};
+    for (const pid of activePlayers) {
+      fallback[pid] = cur.roundEndBalances[pid]
+        ?? cur.lastBalanceUpdate[pid]
+        ?? cur.players[pid].balance;
+    }
+    if (roundEndTimeoutRef.current) {
+      clearTimeout(roundEndTimeoutRef.current);
+      roundEndTimeoutRef.current = null;
+    }
+    let next = collectRoundEndBalances(cur, fallback);
+    next = startRoundTimeout(next);
+    Sound.fanfare();
+    void broadcast(next);
+  }, [isHost, broadcast]);
+
   const hostPlayAgain = useCallback(() => {
     const cur = stateRef.current;
     if (!cur || !isHost) return;
@@ -398,19 +456,20 @@ export function useGameState(): UseGameStateApi {
   }, [isHost, broadcast]);
 
   // PLAYER ACTIONS
-  // If we're the host, process the action locally via handleAction (since sendAction
-  // only delivers to peers, not to self). If we're a guest, send to the host.
+  // Always call handleAction locally (it self-no-ops if we're not the host via the
+  // `cur.hostId !== p2pRef.current?.selfId` check) AND always send via P2P.
+  // This avoids stale `isHost` closure issues — the authority check is inside
+  // handleAction itself, not in the dispatch layer.
   const dispatchPlayerAction = useCallback((action: PlayerAction) => {
     const p2p = p2pRef.current;
     if (!p2p) return;
-    if (isHost && selfRef.current) {
-      // Host processes their own action locally
+    // Process locally — handleAction returns early if we're not the host
+    if (selfRef.current) {
       void handleAction(action, selfRef.current.id);
-    } else {
-      // Guest sends to host (and all peers; only host acts on it)
-      void p2p.sendAction(action);
     }
-  }, [isHost, handleAction]);
+    // Also send to all peers — host receives & processes; guests ignore
+    void p2p.sendAction(action);
+  }, [handleAction]);
 
   const selectGame = useCallback((game: GameName) => {
     dispatchPlayerAction({ type: 'select-game', game });
@@ -463,6 +522,7 @@ export function useGameState(): UseGameStateApi {
     hostAdvanceFromFinalVote,
     hostAdvanceFromRoundTimeout,
     hostSkipRound,
+    hostForceEndRound,
     hostPlayAgain,
     selectGame,
     finalVote,

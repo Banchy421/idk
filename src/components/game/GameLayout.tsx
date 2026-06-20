@@ -27,6 +27,7 @@ interface GameLayoutProps {
   onUnskipVote: () => void;
   onLiveBalance: (balance: number) => void;
   onRoundEndBalance: (balance: number) => void;
+  onForceEndRound: () => void;
   onLeave: () => void;
 }
 
@@ -51,7 +52,7 @@ const GAME_COMPONENTS: Record<GameName, React.ComponentType<GameProps>> = {
 };
 
 export function GameLayout({
-  state, self, isHost, onSkipVote, onUnskipVote, onLiveBalance, onRoundEndBalance, onLeave,
+  state, self, isHost, onSkipVote, onUnskipVote, onLiveBalance, onRoundEndBalance, onForceEndRound, onLeave,
 }: GameLayoutProps) {
   const [isMobile, setIsMobile] = useState(false);
   const [liveBalance, setLiveBalance] = useState(self?.balance ?? 100);
@@ -156,6 +157,16 @@ export function GameLayout({
             onVote={onSkipVote}
             onUnvote={onUnskipVote}
           />
+          {isHost && (
+            <button
+              onClick={onForceEndRound}
+              onMouseEnter={() => Sound.hover()}
+              className="text-xs px-3 py-2 bg-[#1a1a1a] border border-[#2a2a2a] hover:border-lose text-muted-foreground hover:text-lose rounded-md font-medium transition-all"
+              title="Force-end this round immediately (use if round is stuck)"
+            >
+              ⏹ Force End
+            </button>
+          )}
           <button onClick={onLeave} className="text-xs text-muted-foreground hover:text-lose">
             Leave
           </button>
