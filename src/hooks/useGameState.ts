@@ -399,23 +399,27 @@ export function useGameState(): UseGameStateApi {
   const hostAdvanceFromRoundTimeout = useCallback(() => {
     const cur = stateRef.current;
     if (!cur || !isHost) return;
-    // Apply bailout defaults for players who didn't choose
+    // Apply bailout defaults for players who didn't choose (auto €50)
     let next = cur;
     for (const pid of cur.bailoutPending) {
-      next = applyBailout(next, pid, 50); // default €50
+      next = applyBailout(next, pid, 50);
     }
     // Mark eliminated players who still have 0 balance after bailout
     const players = { ...next.players };
     for (const pid of Object.keys(players)) {
       if (players[pid].balance <= 0 && !players[pid].bailoutUsed) {
-        // give them €50 default bailout
-        players[pid] = { ...players[pid], balance: 50, bailoutUsed: true, roundBonus: 0.9 };
-      }
-      if (players[pid].balance <= 0) {
-        players[pid] = { ...players[pid], isEliminated: true, balance: 0 };
+        // give them €50 default bailout (also queues the penalty)
+        next = applyBailout(next, pid, 50);
       }
     }
-    next = { ...next, players, bailoutPending: [] };
+    // Re-read after applyBailout may have mutated
+    const playersAfter = { ...next.players };
+    for (const pid of Object.keys(playersAfter)) {
+      if (playersAfter[pid].balance <= 0) {
+        playersAfter[pid] = { ...playersAfter[pid], isEliminated: true, balance: 0 };
+      }
+    }
+    next = { ...next, players: playersAfter, bailoutPending: [] };
     const advanced = advanceAfterTimeout(next);
     void broadcast(advanced);
   }, [isHost, broadcast]);

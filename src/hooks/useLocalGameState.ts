@@ -166,11 +166,15 @@ export function useLocalGameState(): UseLocalGameStateApi {
     for (const pid of cur.bailoutPending) {
       next = applyBailout(next, pid, 50);
     }
+    // Give default bailout to anyone still at 0 who hasn't used bailout
+    for (const pid of Object.keys(next.players)) {
+      if (next.players[pid].balance <= 0 && !next.players[pid].bailoutUsed) {
+        next = applyBailout(next, pid, 50);
+      }
+    }
+    // Mark eliminated players who still have 0 balance
     const players = { ...next.players };
     for (const pid of Object.keys(players)) {
-      if (players[pid].balance <= 0 && !players[pid].bailoutUsed) {
-        players[pid] = { ...players[pid], balance: 50, bailoutUsed: true, roundBonus: 0.9 };
-      }
       if (players[pid].balance <= 0) {
         players[pid] = { ...players[pid], isEliminated: true, balance: 0 };
       }

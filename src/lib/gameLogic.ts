@@ -27,8 +27,10 @@ export function makeInitialState(hostPlayer: Player, mode: GameMode): GameState 
     finalWinnerId: null,
     lastBalanceUpdate: {},
     roundEndBalances: {},
+    roundStartBalances: {},
     bailoutPending: [],
     bailoutChoices: {},
+    bailoutPenaltyPending: [],
   };
 }
 
@@ -116,6 +118,12 @@ export function resolveGameSelect(state: GameState, rng: () => number = Math.ran
       roundBonus: 1.1,
     };
   }
+  // Snapshot each player's balance at the start of this round — used to compute
+  // profit for the bailout penalty at round end.
+  const roundStartBalances: Record<string, number> = {};
+  for (const pid of Object.keys(players)) {
+    roundStartBalances[pid] = players[pid].balance;
+  }
   return {
     ...state,
     players,
@@ -124,6 +132,9 @@ export function resolveGameSelect(state: GameState, rng: () => number = Math.ran
     timeRemaining: roundDurationFor(state.gameMode, state.currentRound),
     roundDuration: roundDurationFor(state.gameMode, state.currentRound),
     crashPoints: crashPointsForRound(state.roundSeed, 10),
+    roundStartBalances,
+    roundEndBalances: {},
+    lastBalanceUpdate: {},
   };
 }
 
@@ -230,11 +241,15 @@ export function applyBailout(state: GameState, playerId: string, amount: number)
     ...players[playerId],
     balance: players[playerId].balance + amount,
     bailoutUsed: true,
-    roundBonus: Math.max(players[playerId].roundBonus, 1.0), // bailout penalty applied at round-end next round
   };
   const bailoutChoices = { ...state.bailoutChoices, [playerId]: amount };
   const bailoutPending = state.bailoutPending.filter((id) => id !== playerId);
-  return { ...state, players, bailoutChoices, bailoutPending };
+  // Queue the -10% profit penalty for the NEXT round. It will be applied in
+  // collectRoundEndBalances using the round-start balance snapshot.
+  const bailoutPenaltyPending = state.bailoutPenaltyPending.includes(playerId)
+    ? state.bailoutPenaltyPending
+    : [...state.bailoutPenaltyPending, playerId];
+  return { ...state, players, bailoutChoices, bailoutPending, bailoutPenaltyPending };
 }
 
 /** Apply bailout penalty: -10% of net profit at round end. */
@@ -245,22 +260,33 @@ export function applyRoundEndPenalties(state: GameState): GameState {
   return state;
 }
 
-/** Collect round-end balances and finalize. */
+/** Collect round-end balances and finalize. Applies bailout penalty (-10% of profit) for
+ *  players who took a bailout in a previous round-timeout and haven't served the penalty yet. */
 export function collectRoundEndBalances(state: GameState, balances: Record<string, number>): GameState {
   const players = { ...state.players };
+  const penaltyServed: string[] = [];
   for (const pid of Object.keys(balances)) {
     if (players[pid]) {
       let newBalance = balances[pid];
-      // Apply bailout penalty: -10% of profit this round if they used bailout
-      if (players[pid].bailoutUsed && players[pid].roundBonus < 1.0) {
-        const startBalance = 100; // approximate — could track properly
+      // Apply bailout penalty: -10% of THIS ROUND's profit (not total profit).
+      // Uses the balance snapshot taken at round start (roundStartBalances).
+      if (state.bailoutPenaltyPending.includes(pid)) {
+        const startBalance = state.roundStartBalances[pid] ?? players[pid].balance;
         const profit = Math.max(0, newBalance - startBalance);
         newBalance = newBalance - profit * 0.1;
+        penaltyServed.push(pid);
       }
       players[pid] = { ...players[pid], balance: Math.max(0, Math.round(newBalance * 100) / 100) };
     }
   }
-  // Mark eliminated players who ended at 0 and have used bailout
+  // Clear the penalty flag for players who served it this round
+  const remainingPenalty = state.bailoutPenaltyPending.filter((id) => !penaltyServed.includes(id));
+  for (const pid of penaltyServed) {
+    if (players[pid]) {
+      players[pid] = { ...players[pid], bailoutUsed: false };
+    }
+  }
+  // Mark eliminated players who ended at 0 and have already used their bailout
   for (const pid of Object.keys(players)) {
     if (players[pid].balance <= 0 && players[pid].bailoutUsed) {
       players[pid] = { ...players[pid], isEliminated: true, balance: 0 };
@@ -271,44 +297,32 @@ export function collectRoundEndBalances(state: GameState, balances: Record<strin
     players,
     roundEndBalances: balances,
     lastBalanceUpdate: balances,
+    bailoutPenaltyPending: remainingPenalty,
   };
 }
 
-/** Skip the current round entirely. No balance changes; advance to next round. */
+/** Skip the current round. No balance changes, but still show the 10s round-timeout
+ *  pause (winner announcement / bailout offer) before advancing to the next round. */
 export function skipRound(state: GameState): GameState {
-  // If we're already on the last round, go to results
-  if (state.currentRound >= state.totalRounds) {
-    return {
-      ...state,
-      phase: 'results' as Phase,
-      skipVotes: [],
-      timeRemaining: 0,
-      roundDuration: 0,
-    };
-  }
-  // Otherwise, advance to the next round's game-select (or final-vote if last round).
-  // startGameSelect increments currentRound and handles the final-round vote transition.
-  return startGameSelect({ ...state, skipVotes: [] });
+  // Go to round-timeout. startRoundTimeout determines the current leader as "winner"
+  // and offers bailout to anyone at €0. After 10s the host auto-advances via
+  // advanceAfterTimeout → startGameSelect (which increments the round).
+  return startRoundTimeout({ ...state, skipVotes: [] });
 }
 
 /** Advance from round-timeout to next game-select or to results if last round. */
 export function advanceAfterTimeout(state: GameState): GameState {
   if (state.currentRound >= state.totalRounds) {
-    return { ...state, phase: 'results' };
+    return { ...state, phase: 'results' as Phase };
   }
-  // Set bailoutUsed players' roundBonus to 0.9 for next round (penalty)
-  const players = { ...state.players };
-  for (const pid of Object.keys(players)) {
-    if (players[pid].bailoutUsed && players[pid].balance > 0) {
-      players[pid] = { ...players[pid], roundBonus: 0.9 };
-    }
-  }
+  // The bailout penalty is now tracked via bailoutPenaltyPending (set in applyBailout)
+  // and applied in collectRoundEndBalances. No roundBonus manipulation needed here.
   // Check if next round is the final round
   const nextRound = state.currentRound + 1;
   if (nextRound === state.totalRounds) {
-    return startFinalVote({ ...state, players });
+    return startFinalVote({ ...state });
   }
-  return startGameSelect({ ...state, players });
+  return startGameSelect({ ...state });
 }
 
 /** Sort players by balance descending (for leaderboard / results). */

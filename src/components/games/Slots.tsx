@@ -40,6 +40,9 @@ export function Slots({ balance, onBalanceChange, bonusMultiplier, timeRemaining
     if (timeRemaining <= 3) { Sound.error(); return; }
     if (spinState === 'spinning') return;
 
+    // Clear any leftover intervals from a previous spin (safety net)
+    stopAllIntervals();
+
     Sound.bet();
     onBalanceChange(balance - bet);
     setSpinState('spinning');
@@ -55,7 +58,9 @@ export function Slots({ balance, onBalanceChange, bonusMultiplier, timeRemaining
       SLOTS_SYMBOLS[Math.floor(Math.random() * SLOTS_SYMBOLS.length)],
     ];
 
-    // Start spinning animation for each reel
+    // Start spinning animation for each reel — use a FRESH array so we don't
+    // accumulate stale interval IDs across multiple spins.
+    const intervals: ReturnType<typeof setInterval>[] = [];
     for (let i = 0; i < 3; i++) {
       const id = setInterval(() => {
         setReels((prev) => {
@@ -64,13 +69,14 @@ export function Slots({ balance, onBalanceChange, bonusMultiplier, timeRemaining
           return next;
         });
       }, 80);
-      spinIntervals.current.push(id);
+      intervals.push(id);
     }
+    spinIntervals.current = intervals;
 
     // Stop reels one by one with 1s delay (as per spec)
     for (let i = 0; i < 3; i++) {
       await new Promise((r) => setTimeout(r, 1000));
-      clearInterval(spinIntervals.current[i]);
+      clearInterval(intervals[i]);
       setReels((prev) => {
         const next = [...prev];
         next[i] = final[i];

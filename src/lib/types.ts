@@ -63,8 +63,10 @@ export interface GameState {
   finalWinnerId: string | null;
   lastBalanceUpdate: Record<string, number>; // live balance syncs every 2s
   roundEndBalances: Record<string, number>; // collected at round end
+  roundStartBalances: Record<string, number>; // balance at start of round (for profit calc)
   bailoutPending: string[]; // player ids who need to choose bailout
   bailoutChoices: Record<string, number>; // playerId -> amount chosen
+  bailoutPenaltyPending: string[]; // player ids who must serve -10% profit penalty this round
 }
 
 export type PlayerAction =

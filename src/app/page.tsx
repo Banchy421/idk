@@ -176,6 +176,7 @@ export default function Home() {
 
       {phase === 'round-active' && (
         <GameLayout
+          key={`round-${api.state.currentRound}`}
           state={api.state}
           self={api.self}
           isHost={api.isHost}

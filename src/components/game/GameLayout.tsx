@@ -55,7 +55,12 @@ export function GameLayout({
   state, self, isHost, onSkipVote, onUnskipVote, onLiveBalance, onRoundEndBalance, onForceEndRound, onLeave,
 }: GameLayoutProps) {
   const [isMobile, setIsMobile] = useState(false);
-  const [liveBalance, setLiveBalance] = useState(self?.balance ?? 100);
+  // Initialize from the authoritative balance in game state (not 100).
+  // self?.balance comes from the host's broadcast state and is always current.
+  // We use `state.currentRound` in the key to force re-mount per round, which
+  // re-initializes liveBalance from the latest self.balance.
+  const initialBalance = self?.balance ?? state.players[self?.id ?? '']?.balance ?? 100;
+  const [liveBalance, setLiveBalance] = useState(initialBalance);
   const liveBalanceRef = useRef(liveBalance);
   useEffect(() => { liveBalanceRef.current = liveBalance; }, [liveBalance]);
 
