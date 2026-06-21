@@ -100,37 +100,43 @@ export function Mines({ balance, onBalanceChange, bonusMultiplier, timeRemaining
   }));
 
   return (
-    <div className="w-full max-w-2xl mx-auto flex flex-col gap-4">
+    <div className="w-full max-w-2xl mx-auto flex flex-col gap-2.5">
       <div className="text-center">
-        <h2 className="font-display text-2xl mb-1" style={{ fontWeight: 500, color: 'var(--sf-text)' }}>Mines</h2>
+        <h2 className="font-display text-xl mb-0.5" style={{ fontWeight: 500, color: 'var(--sf-text)' }}>Mines</h2>
         <p className="text-xs" style={{ color: 'var(--sf-text-muted)', fontWeight: 400 }}>Reveal gems, avoid mines. More mines = bigger multipliers.</p>
       </div>
 
       <BetControls balance={balance} bet={bet} setBet={setBet} disabled={game.status === 'playing'} />
 
       {game.status === 'idle' && (
-        <div className="panel p-3.5 space-y-2.5">
-          <div className="flex items-center justify-between text-xs" style={{ color: 'var(--sf-text-muted)', fontWeight: 400 }}>
-            <span>Number of mines</span>
-            <span className="font-mono" style={{ color: 'var(--sf-text)' }}>{mineCount}</span>
-          </div>
+        <div className="panel p-2.5 flex items-center gap-3">
+          <span className="text-xs whitespace-nowrap" style={{ color: 'var(--sf-text-muted)', fontWeight: 400 }}>Mines: <span className="font-mono" style={{ color: 'var(--sf-text)' }}>{mineCount}</span></span>
           <input
             type="range"
             min={3}
             max={10}
             value={mineCount}
             onChange={(e) => { setMineCount(parseInt(e.target.value, 10)); Sound.hover(); }}
-            className="w-full"
+            className="flex-1"
             style={{ accentColor: 'var(--sf-accent)' }}
           />
-          <div className="text-xs text-center" style={{ color: 'var(--sf-text-muted)', fontWeight: 400 }}>
-            Next safe pick: <span className="font-mono" style={{ color: 'var(--sf-text)' }}>{minesMultiplier(game.revealed.size + 1, mineCount).toFixed(2)}×</span>
+          <span className="text-xs whitespace-nowrap font-mono" style={{ color: 'var(--sf-text-muted)', fontWeight: 400 }}>Next: {minesMultiplier(game.revealed.size + 1, mineCount).toFixed(2)}×</span>
+        </div>
+      )}
+
+      {/* Compact inline stats for playing state */}
+      {game.status === 'playing' && (
+        <div className="flex gap-2">
+          <div className="panel px-3 py-1.5 flex-1 flex items-center justify-between">
+            <span className="text-xs" style={{ color: 'var(--sf-text-muted)', fontWeight: 400 }}>Mult</span>
+            <span className="font-mono text-sm" style={{ color: 'var(--sf-text)', fontWeight: 500 }}>{currentMult.toFixed(2)}×</span>
+            <span className="text-xs font-mono" style={{ color: 'var(--sf-win)', fontWeight: 400 }}>+{formatMoney(profit)}</span>
           </div>
         </div>
       )}
 
-      <div className="panel p-3">
-        <div className="grid grid-cols-5 gap-1.5">
+      <div className="panel p-2.5">
+        <div className="grid grid-cols-5 gap-1">
           {tiles.map((tile) => {
             const showMine = (tile.isMine && (tile.isRevealed || game.status === 'lost'));
             const showGem = tile.isRevealed && !tile.isMine;
@@ -140,10 +146,10 @@ export function Mines({ balance, onBalanceChange, bonusMultiplier, timeRemaining
                 layout
                 onClick={() => revealTile(tile.idx)}
                 disabled={game.status !== 'playing' || tile.isRevealed}
-                whileHover={game.status === 'playing' && !tile.isRevealed ? { scale: 1.03 } : {}}
-                whileTap={game.status === 'playing' && !tile.isRevealed ? { scale: 0.97 } : {}}
+                whileHover={game.status === 'playing' && !tile.isRevealed ? { scale: 1.05 } : {}}
+                whileTap={game.status === 'playing' && !tile.isRevealed ? { scale: 0.95 } : {}}
                 className={cn(
-                  'aspect-square rounded-md flex items-center justify-center text-2xl transition-colors',
+                  'aspect-square rounded-md flex items-center justify-center text-lg transition-colors',
                   showMine && 'shake',
                 )}
                 style={{
@@ -183,41 +189,34 @@ export function Mines({ balance, onBalanceChange, bonusMultiplier, timeRemaining
           <button
             onClick={startGame}
             disabled={balance < bet || timeRemaining <= 3}
-            className="btn-premium flex-1 py-3"
+            className="btn-premium flex-1 py-2.5"
             style={{ opacity: (balance < bet || timeRemaining <= 3) ? 0.5 : 1, cursor: (balance < bet || timeRemaining <= 3) ? 'not-allowed' : 'pointer' }}
           >
             {balance >= bet ? `Start (−${formatMoney(bet)})` : 'Not enough balance'}
           </button>
         )}
         {game.status === 'playing' && (
-          <>
-            <div className="panel p-3 text-center flex-1">
-              <div className="text-xs" style={{ color: 'var(--sf-text-muted)', fontWeight: 400 }}>Current multiplier</div>
-              <div className="font-display text-xl font-mono" style={{ color: 'var(--sf-text)', fontWeight: 500 }}>{currentMult.toFixed(2)}×</div>
-              <div className="text-xs font-mono" style={{ color: 'var(--sf-win)', fontWeight: 400 }}>+{formatMoney(profit)}</div>
-            </div>
-            <button
-              onClick={cashOut}
-              disabled={game.revealed.size === 0}
-              className="flex-1 py-3 rounded-md transition-colors"
-              style={{
-                backgroundColor: game.revealed.size > 0 ? 'var(--sf-win)' : 'var(--sf-border)',
-                color: 'var(--sf-bg)',
-                fontWeight: 400,
-                cursor: game.revealed.size > 0 ? 'pointer' : 'not-allowed',
-              }}
-            >
-              {game.revealed.size > 0 ? `Cash out (${formatMoney(cashOutAmount)})` : 'Reveal to cash out'}
-            </button>
-          </>
+          <button
+            onClick={cashOut}
+            disabled={game.revealed.size === 0}
+            className="flex-1 py-2.5 rounded-md transition-colors"
+            style={{
+              backgroundColor: game.revealed.size > 0 ? 'var(--sf-win)' : 'var(--sf-border)',
+              color: 'var(--sf-bg)',
+              fontWeight: 400,
+              cursor: game.revealed.size > 0 ? 'pointer' : 'not-allowed',
+            }}
+          >
+            {game.revealed.size > 0 ? `Cash out (${formatMoney(cashOutAmount)})` : 'Reveal to cash out'}
+          </button>
         )}
         {game.status === 'lost' && (
-          <div className="flex-1 py-3 rounded-md text-center" style={{ backgroundColor: 'var(--sf-lose)', color: 'var(--sf-bg)', fontWeight: 400 }}>
+          <div className="flex-1 py-2.5 rounded-md text-center" style={{ backgroundColor: 'var(--sf-lose)', color: 'var(--sf-bg)', fontWeight: 400 }}>
             Boom! Lost {formatMoney(bet)}
           </div>
         )}
         {game.status === 'won' && (
-          <div className="flex-1 py-3 rounded-md text-center" style={{ backgroundColor: 'var(--sf-win)', color: 'var(--sf-bg)', fontWeight: 400 }}>
+          <div className="flex-1 py-2.5 rounded-md text-center" style={{ backgroundColor: 'var(--sf-win)', color: 'var(--sf-bg)', fontWeight: 400 }}>
             Cashed out: +{formatMoney(profit)}
           </div>
         )}

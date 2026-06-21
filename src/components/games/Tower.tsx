@@ -37,10 +37,10 @@ function multiplierForLevel(level: number): number {
   return Math.round(m * 100) / 100;
 }
 
-/** Bomb chance per level — starts at 33%, increases ~4% per level, capped at 90%.
- *  Steeper than before so high levels are very risky. */
+/** Bomb chance per level — starts at 33%, increases 2% per level, capped at 85%.
+ *  Gentler curve so climbing feels more rewarding. */
 function bombChanceForLevel(level: number): number {
-  return Math.min(0.90, 0.33 + level * 0.04);
+  return Math.min(0.85, 0.33 + level * 0.02);
 }
 
 export function Tower({ balance, onBalanceChange, bonusMultiplier, timeRemaining }: TowerProps) {
