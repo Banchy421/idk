@@ -19,6 +19,7 @@ import { Coinflip } from '@/components/games/Coinflip';
 import { Keno } from '@/components/games/Keno';
 import { ThemePicker } from '@/components/theme/ThemePicker';
 import { PowerButton } from './PowerButton';
+import { PowerEffects } from './PowerEffects';
 import { cn } from '@/lib/utils';
 
 interface GameLayoutProps {
@@ -66,6 +67,19 @@ export function GameLayout({
   const [liveBalance, setLiveBalance] = useState(initialBalance);
   const liveBalanceRef = useRef(liveBalance);
   useEffect(() => { liveBalanceRef.current = liveBalance; }, [liveBalance]);
+
+  // Sync liveBalance when the authoritative player balance changes from power effects
+  // (Heist, Swap modify balance directly on state.players, not via onBalanceChange)
+  const stateBalance = self?.balance ?? 0;
+  const prevPowerUsed = useRef(false);
+  useEffect(() => {
+    if (self?.power?.used && !prevPowerUsed.current) {
+      prevPowerUsed.current = true;
+      queueMicrotask(() => setLiveBalance(stateBalance));
+    } else if (!self?.power?.used) {
+      prevPowerUsed.current = false;
+    }
+  }, [stateBalance, self?.power?.used]);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
@@ -273,6 +287,11 @@ export function GameLayout({
       {/* Floating power button — only if powers are enabled and player has a power */}
       {state.powersEnabled && self?.power && (
         <PowerButton state={state} self={self} onActivate={onActivatePower} />
+      )}
+
+      {/* Power effect overlays — visual effects for active powers */}
+      {state.powersEnabled && self && (
+        <PowerEffects state={state} self={self} />
       )}
     </div>
   );
